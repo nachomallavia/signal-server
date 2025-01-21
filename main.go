@@ -33,10 +33,12 @@ func WSHandler (w http.ResponseWriter, r *http.Request) {
 
 	// Register the new client to the symbol they're subscribing to
 	for {
-		_, symbol, err := conn.ReadMessage()
-		clientConns[conn] = string(symbol)
-		log.Println("New Client Connected!")
-
+		_, message, err := conn.ReadMessage()
+		if _, ok := clientConns[conn]; !ok{
+			clientConns[conn] = conn.RemoteAddr().String()
+		}
+		log.Printf("Connections Map: %v", clientConns)
+		log.Println(string(message))
 		if err != nil {
 			log.Println("Error reading from the client:", err)
 			break
@@ -60,6 +62,7 @@ func main(){
 			}
 			fmt.Println(string(reqBody))
 			w.Write([]byte("Received a POST request\n"))
+
 		} else{
 			w.WriteHeader(http.StatusNotImplemented)
 			w.Write([]byte(http.StatusText(http.StatusNotImplemented)))
