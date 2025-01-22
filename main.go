@@ -1,8 +1,8 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -11,7 +11,22 @@ import (
 	"github.com/joho/godotenv"
 )
 var clientConns = make(map[*websocket.Conn]string)
-
+type Message struct {
+	MessageType int
+	Data []byte
+}
+type Signal struct {
+	Symbol, Side, Strategy, Exchange string;
+}
+func broadcastSignal (clientConns map[*websocket.Conn]string, signal Signal) {
+	for conn, _ := range clientConns{
+		s, err := json.Marshal(signal)
+		if err != nil{
+			fmt.Println("Failed Json: ", err)
+		}		
+		conn.WriteMessage(1,s)
+	}
+}
 func WSHandler (w http.ResponseWriter, r *http.Request) {
 	// Upgrade incoming GET request into a Websocket connection
 	upgrader := websocket.Upgrader{
@@ -43,6 +58,7 @@ func WSHandler (w http.ResponseWriter, r *http.Request) {
 			log.Println("Error reading from the client:", err)
 			break
 		}
+		
 	}
 }
 func main(){
@@ -51,16 +67,18 @@ func main(){
 	fmt.Println("Running server on port: ", os.Getenv("PORT"))
 	
 	http.HandleFunc("/ws", WSHandler)
+	
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Received a GET request\n"))
 	})
 	http.HandleFunc("/signal", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST"{
-			reqBody, err := io.ReadAll(r.Body)
-			if err != nil {
-				fmt.Println(err)
+			s := new(Signal)
+			if err := json.NewDecoder(r.Body).Decode(s); err != nil{
+					fmt.Println(err)
 			}
-			fmt.Println(string(reqBody))
+			fmt.Println(s)
+			broadcastSignal(clientConns, *s)
 			w.Write([]byte("Received a POST request\n"))
 
 		} else{
