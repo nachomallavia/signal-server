@@ -16,7 +16,10 @@ type Message struct {
 	Data []byte
 }
 type Signal struct {
-	Symbol, Side, Strategy, Exchange string;
+	Symbol string `json:"symbol"`;
+	Side string `json:"side"`;
+	Strategy string `json:"strategy"`
+	Exchange string `json:"exchange"`;
 }
 func broadcastSignal (clientConns map[*websocket.Conn]string, signal Signal) {
 	for conn, _ := range clientConns{
@@ -30,6 +33,8 @@ func broadcastSignal (clientConns map[*websocket.Conn]string, signal Signal) {
 func WSHandler (w http.ResponseWriter, r *http.Request) {
 	// Upgrade incoming GET request into a Websocket connection
 	upgrader := websocket.Upgrader{
+		ReadBufferSize: 1024,
+		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
 			return true
 		},
@@ -37,8 +42,14 @@ func WSHandler (w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("Failed to upgrate connection:", err)
+		
+	}
+	if _, ok := clientConns[conn]; !ok{
+		clientConns[conn] = conn.RemoteAddr().String()
+		log.Printf("Connections Map: %v", clientConns)
 	}
 
+	
 	// Close ws connection & unregister the client when they disconnect
 	defer conn.Close()
 	defer func() {
@@ -49,9 +60,7 @@ func WSHandler (w http.ResponseWriter, r *http.Request) {
 	// Register the new client to the symbol they're subscribing to
 	for {
 		_, message, err := conn.ReadMessage()
-		if _, ok := clientConns[conn]; !ok{
-			clientConns[conn] = conn.RemoteAddr().String()
-		}
+		
 		log.Printf("Connections Map: %v", clientConns)
 		log.Println(string(message))
 		if err != nil {
